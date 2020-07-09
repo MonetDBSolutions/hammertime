@@ -16,6 +16,7 @@ set(CMAKE_C_STANDARD 99)
 SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 add_executable(mthreaded mthreaded.c)
+add_executable(mthreaded2 mthreaded2.c)
 
 find_package(MonetDB CONFIG REQUIRED)
 find_package (Threads)
@@ -26,4 +27,10 @@ target_link_libraries(mthreaded
   ${CMAKE_THREAD_LIBS_INIT}
 )
 
-install(TARGETS mthreaded)
+target_link_libraries(mthreaded2
+  PRIVATE
+  MonetDB::monetdbe
+  ${CMAKE_THREAD_LIBS_INIT}
+)
+
+install(TARGETS mthreaded mthreaded2)
