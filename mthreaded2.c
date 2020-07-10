@@ -15,8 +15,8 @@
 
 #define error(msg) fprintf(stderr, "Failure: %s\n", msg);
 
-#define MAX_SIZE_PART_TABLE  10
-#define MAX_SIZE_MERGE_TABLE 40
+#define MAX_SIZE_PART_TABLE  50
+#define MAX_SIZE_MERGE_TABLE 200
 
 #include <stdatomic.h>
 
@@ -48,8 +48,10 @@ void* partition_procedure (void* arg) {
 		monetdbe_result* result;
 	
 		char* err;
-		if ((err = monetdbe_query(mdbe, query_string_buffer, &result, NULL)) != NULL)
+		if ((err = monetdbe_query(mdbe, query_string_buffer, &result, NULL)) != NULL) {
 			error(err)
+			continue;
+		}
 		monetdbe_column* rcol;
 		monetdbe_result_fetch(result, &rcol, 0);
 
@@ -66,10 +68,20 @@ void* partition_procedure (void* arg) {
 
 		int next_part = part + 1;
 
-		sprintf(query_string_buffer, "CREATE TABLE IF NOT EXISTS pt_%d (x INTEGER);ALTER TABLE mt ADD TABLE pt_%d;", next_part, next_part);
-		monetdbe_query(mdbe, query_string_buffer, NULL, NULL);
+		sprintf(query_string_buffer, "CREATE TABLE pt_%d (x INTEGER)", next_part);
+		if ((err = monetdbe_query(mdbe, query_string_buffer, NULL, NULL)) != NULL) {
+			error(err)
+			continue;
+		}
 
 		atomic_store(&latest_partition_table, next_part);
+
+		sprintf(query_string_buffer, "ALTER TABLE mt ADD TABLE pt_%d", next_part);
+		if ((err = monetdbe_query(mdbe, query_string_buffer, NULL, NULL)) != NULL) {
+			error(err)
+			continue;
+		}
+
 	}
 
 	if (monetdbe_close(mdbe)) {
@@ -85,14 +97,20 @@ void* insert_procedure (void* arg) {
 	if (monetdbe_open(&mdbe, "/home/aris/sources/hammertime/devdb", NULL))
 		error("Failed to open database")
 
+	while (  ((int) atomic_load(&latest_partition_table)) < 0)  {};
 
 	bool loop = true;
 	while(loop) {
 
 		char query_string_buffer[256];
 
-		sprintf(query_string_buffer, "INSERT INTO pt_%d VALUES (RAND()), (RAND()), (RAND()), (RAND())", (int) atomic_load(&latest_partition_table));
-		monetdbe_query(mdbe, query_string_buffer, NULL, NULL);
+		int part = (int) atomic_load(&latest_partition_table);
+
+		sprintf(query_string_buffer, "INSERT INTO pt_%d VALUES (RAND()), (RAND()), (RAND()), (RAND()), (RAND()), (RAND()), (RAND()), (RAND()), (RAND()), (RAND())", part);
+
+		char* err;
+		if ((err = monetdbe_query(mdbe, query_string_buffer, NULL, NULL)) != NULL)
+			error(err)
 	}
 
 	if (monetdbe_close(mdbe)) {
@@ -115,9 +133,12 @@ void* delete_procedure (void* arg) {
 
 		if (  ! ( ((int) atomic_load(&oldest_partition_table)) < (int) atomic_load(&latest_partition_table)) )  continue;
 
-
+		char* err;
 		monetdbe_result* result;
-		monetdbe_query(mdbe, "SELECT COUNT(x) FROM mt; ", &result, NULL);
+		if ((err = monetdbe_query(mdbe, "SELECT COUNT(x) FROM mt; ", &result, NULL)) != NULL) {
+			error(err)
+			continue;
+		}
 
 		monetdbe_column* rcol;
 		monetdbe_result_fetch(result, &rcol, 0);
@@ -134,9 +155,12 @@ void* delete_procedure (void* arg) {
 		int part = (int) atomic_load(&oldest_partition_table);
 		sprintf(query_string_buffer, "DROP TABLE pt_%d CASCADE", part);
 
-		monetdbe_query(mdbe, query_string_buffer, NULL, NULL);
+		if ((err = monetdbe_query(mdbe, query_string_buffer, NULL, NULL)) != NULL) {
+			error(err)
+			continue;
+		}
 
-		atomic_store(&oldest_partition_table, part+1);		
+		atomic_store(&oldest_partition_table, part+1);
 	}
 
 	if (monetdbe_close(mdbe)) {
