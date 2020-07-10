@@ -15,29 +15,47 @@
 
 #define error(msg) fprintf(stderr, "Failure: %s\n", msg);
 
-
 void* insert_procedure (void* arg) {
 	monetdbe_database mdbe = arg;
+
+	puts("i: start open");
 
 	if (monetdbe_open(&mdbe, "/home/aris/sources/hammertime/devdb", NULL))
 		error("Failed to open database")
 
-    monetdbe_result* result;
+	puts("i: end open");
+
+    
 	monetdbe_query(mdbe, "CREATE TABLE IF NOT EXISTS test (x INTEGER)", NULL, NULL);
-	monetdbe_query(mdbe, "INSERT INTO test VALUES (RAND()), (RAND()), (RAND()), (RAND())", NULL, NULL);
-	monetdbe_query(mdbe, "SELECT x FROM test; ", &result, NULL);
-	monetdbe_column* rcol;
-	monetdbe_result_fetch(result, &rcol, 0);
 
-	monetdbe_column_int32_t * col_x = (monetdbe_column_int32_t *) rcol;
+	bool loop = true;
 
-    for (size_t i = 0 ; i < col_x->count; i++) {
-        printf ("from %s: check value %d\n",__func__, (int) col_x->data[i]);
-    }
+	while(loop) {
+
+		monetdbe_query(mdbe, "INSERT INTO test VALUES (RAND()), (RAND()), (RAND()), (RAND())", NULL, NULL);
+
+		monetdbe_result* result;
+		monetdbe_query(mdbe, "SELECT x FROM test; ", &result, NULL);
+		monetdbe_column* rcol;
+		monetdbe_result_fetch(result, &rcol, 0);
+
+		monetdbe_column_int32_t * col_x = (monetdbe_column_int32_t *) rcol;
+
+		for (size_t i = 0 ; i < col_x->count; i++) {
+			printf ("from %s: check value %d\n",__func__, (int) col_x->data[i]);
+		}
+		char* err;
+		if ((err = monetdbe_cleanup_result(mdbe, result)) != NULL)
+			error(err)
+	}
+
+	puts("i: start close");
 
 	if (monetdbe_close(mdbe)) {
         error("Failed to close database");
     }
+
+	puts("i: end close");
 
 	pthread_exit(NULL);
 }
@@ -45,25 +63,44 @@ void* insert_procedure (void* arg) {
 void* delete_procedure (void* arg) {
 	monetdbe_database mdbe = arg;
 
+	puts("d: start open");
+
 	if (monetdbe_open(&mdbe, "/home/aris/sources/hammertime/devdb", NULL))
 		error("Failed to open database")
 
-    monetdbe_result* result;
-	monetdbe_query(mdbe, "CREATE TABLE IF NOT EXISTS test (x INTEGER)", NULL, NULL);
-	monetdbe_query(mdbe, "DELETE FROM test WHERE x < (SELECT MEDIAN(x) FROM test)", NULL, NULL);
-	monetdbe_query(mdbe, "SELECT x FROM test; ", &result, NULL);
-	monetdbe_column* rcol;
-	monetdbe_result_fetch(result, &rcol, 0);
+	puts("d: end open");
 
-	monetdbe_column_int32_t * col_x = (monetdbe_column_int32_t *) rcol;
+    monetdbe_query(mdbe, "CREATE TABLE IF NOT EXISTS test (x INTEGER)", NULL, NULL);
 
-    for (size_t i = 0 ; i < col_x->count; i++) {
-        printf ("from %s: check value %d\n",__func__, (int) col_x->data[i]);
-    }
+	bool loop = true;
+
+	while(loop) {
+
+		monetdbe_query(mdbe, "DELETE FROM test WHERE x < (SELECT MEDIAN(x) FROM test)", NULL, NULL);
+	
+		monetdbe_result* result;
+		monetdbe_query(mdbe, "SELECT x FROM test; ", &result, NULL);
+		monetdbe_column* rcol;
+		monetdbe_result_fetch(result, &rcol, 0);
+
+		monetdbe_column_int32_t * col_x = (monetdbe_column_int32_t *) rcol;
+
+		for (size_t i = 0 ; i < col_x->count; i++) {
+			printf ("from %s: check value %d\n",__func__, (int) col_x->data[i]);
+		}
+
+		char* err;
+		if ((err = monetdbe_cleanup_result(mdbe, result)) != NULL)
+			error(err)
+	}
+
+	puts("d: start close");
 
 	if (monetdbe_close(mdbe)) {
         error("Failed to close database")
     }
+
+	puts("d: end close");
 
 	pthread_exit(NULL);
 }
