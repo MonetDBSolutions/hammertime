@@ -13,7 +13,7 @@
 #include <pthread.h>
 
 
-#define error(msg) fprintf(stderr, "Failure: %s\n", msg);
+#define error(msg) fprintf(stderr, "Failure in %s: %s\n", __func__, msg);
 
 #define MAX_SIZE_PART_TABLE  50
 #define MAX_SIZE_MERGE_TABLE 200
@@ -38,16 +38,23 @@ void* partition_procedure (void* arg) {
 
 	bool loop = true;
 	while(loop) {
+		char* err;
+		/*
+		// Clean up the previously failed transaction if present.
+		if ((err = monetdbe_query(mdbe, "ROLLBACK", NULL, NULL)) != NULL) {
+			error(err)
+			continue;
+		}
+		*/
 
 		char query_string_buffer[256];
 
 		int part = (int) atomic_load(&latest_partition_table);
 
-		sprintf(query_string_buffer, "SELECT COUNT(*) FROM pt_%d", part);
 
+		sprintf(query_string_buffer, "SELECT COUNT(*) FROM pt_%d", part);
+		printf("%s\n", query_string_buffer);
 		monetdbe_result* result;
-	
-		char* err;
 		if ((err = monetdbe_query(mdbe, query_string_buffer, &result, NULL)) != NULL) {
 			error(err)
 			continue;
@@ -69,6 +76,7 @@ void* partition_procedure (void* arg) {
 		int next_part = part + 1;
 
 		sprintf(query_string_buffer, "CREATE TABLE pt_%d (x INTEGER)", next_part);
+		printf("%s\n", query_string_buffer);
 		if ((err = monetdbe_query(mdbe, query_string_buffer, NULL, NULL)) != NULL) {
 			error(err)
 			continue;
@@ -77,6 +85,7 @@ void* partition_procedure (void* arg) {
 		atomic_store(&latest_partition_table, next_part);
 
 		sprintf(query_string_buffer, "ALTER TABLE mt ADD TABLE pt_%d", next_part);
+		printf("%s\n", query_string_buffer);
 		if ((err = monetdbe_query(mdbe, query_string_buffer, NULL, NULL)) != NULL) {
 			error(err)
 			continue;
@@ -107,7 +116,7 @@ void* insert_procedure (void* arg) {
 		int part = (int) atomic_load(&latest_partition_table);
 
 		sprintf(query_string_buffer, "INSERT INTO pt_%d VALUES (RAND()), (RAND()), (RAND()), (RAND()), (RAND()), (RAND()), (RAND()), (RAND()), (RAND()), (RAND())", part);
-
+		printf("%s\n", query_string_buffer);
 		char* err;
 		if ((err = monetdbe_query(mdbe, query_string_buffer, NULL, NULL)) != NULL)
 			error(err)
@@ -126,8 +135,6 @@ void* delete_procedure (void* arg) {
 	if (monetdbe_open(&mdbe, "/home/aris/sources/hammertime/devdb", NULL))
 		error("Failed to open database")
 
-	
-
     bool loop = true;
 	while(loop) {
 
@@ -135,7 +142,8 @@ void* delete_procedure (void* arg) {
 
 		char* err;
 		monetdbe_result* result;
-		if ((err = monetdbe_query(mdbe, "SELECT COUNT(x) FROM mt; ", &result, NULL)) != NULL) {
+		printf("SELECT COUNT(x) FROM mt\n");
+		if ((err = monetdbe_query(mdbe, "SELECT COUNT(x) FROM mt", &result, NULL)) != NULL) {
 			error(err)
 			continue;
 		}
@@ -154,7 +162,7 @@ void* delete_procedure (void* arg) {
 		char query_string_buffer[256];
 		int part = (int) atomic_load(&oldest_partition_table);
 		sprintf(query_string_buffer, "DROP TABLE pt_%d CASCADE", part);
-
+		printf("%s\n", query_string_buffer);
 		if ((err = monetdbe_query(mdbe, query_string_buffer, NULL, NULL)) != NULL) {
 			error(err)
 			continue;
