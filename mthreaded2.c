@@ -24,10 +24,12 @@ atomic_int latest_partition_table;
 
 atomic_int oldest_partition_table;
 
+char *dbpath = NULL;
+
 void* partition_procedure (void* arg) {
 	monetdbe_database mdbe = arg;
 
-	if (monetdbe_open(&mdbe, "/home/aris/sources/hammertime/devdb", NULL))
+	if (monetdbe_open(&mdbe, dbpath, NULL))
 		error("Failed to open database")
 
 	monetdbe_query(mdbe, "CREATE MERGE TABLE IF NOT EXISTS mt (x INTEGER)", NULL, NULL);
@@ -103,7 +105,7 @@ void* partition_procedure (void* arg) {
 void* insert_procedure (void* arg) {
 	monetdbe_database mdbe = arg;
 
-	if (monetdbe_open(&mdbe, "/home/aris/sources/hammertime/devdb", NULL))
+	if (monetdbe_open(&mdbe, dbpath, NULL))
 		error("Failed to open database")
 
 	while (  ((int) atomic_load(&latest_partition_table)) < 0)  {};
@@ -132,7 +134,7 @@ void* insert_procedure (void* arg) {
 void* delete_procedure (void* arg) {
 	monetdbe_database mdbe = arg;
 
-	if (monetdbe_open(&mdbe, "/home/aris/sources/hammertime/devdb", NULL))
+	if (monetdbe_open(&mdbe, dbpath, NULL))
 		error("Failed to open database")
 
     bool loop = true;
@@ -178,8 +180,16 @@ void* delete_procedure (void* arg) {
 	pthread_exit(NULL);
 }
 
-int main() {
+int main( int argc, char *argv[]) 
+{
+	if (argc != 2) {
+		printf("usage: mthreaded2 dbpath\n");
+		return -1;
+	}
+		
+	dbpath = argv[1];
 
+	printf("%s\n", dbpath);
 	atomic_init(&latest_partition_table, -1);
 	atomic_init(&oldest_partition_table, 0);
 
